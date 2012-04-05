@@ -311,7 +311,7 @@ var Element = function(type) {
 		throw Error("Not implemented");
 	};
 	this.createLabelNode = function() {
-		this.labelNode = $("<div/>").addClass("label").text(this.label);
+		this.labelNode = $("<div/>").addClass("label").text(this.label).disableSelection();
 	};
 	this.createNode = function() {
 		throw Error("Not implemented");
@@ -370,7 +370,8 @@ var Point = function(position) {
 		that.createLabelNode();
 		that.node = $("<div/>").attr("id", that.id)
 			.addClass("object point")
-			.css({width: that.size, height: that.size});
+			.css({width: that.size, height: that.size})
+			.disableSelection();
 		return that;
 	};
 	that.render = function() {
@@ -479,7 +480,7 @@ var Line = function(point, arg) {
 			.css({
 				"-webkit-transform-origin": that.offset + "px 0px",
 				height: that.size,
-		});
+		}).disableSelection();
 		return that;
 	};
 	that.render = function() {
@@ -571,7 +572,8 @@ var Circle = function(point, arg) {
 	};
 	that.createNode = function() {
 		that.node = $("<div/>").attr("id", that.id)
-			.addClass("object circle");
+			.addClass("object circle")
+			.disableSelection();
 		return that;
 	};
 	that.size = 1;
