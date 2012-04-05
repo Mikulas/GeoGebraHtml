@@ -31,10 +31,19 @@ $(function() {
 				return false;
 
 			} else if (near.instanceOf(Element.types.line)) {
-				var line = new Line(new Point(new Position(c.mouse.position.x, 0)), new Slope(0, 1));
-				el = near.getIntersection(line);
-				el.constrainMovementTo = [];
-				el.constrainMovementTo.push(near);
+				var intersecting = c.getNearestObject(c.mouse.position, [near.id]);
+				var line = null;
+				
+				if (intersecting.instanceOf(Element.types.line)) {
+					line = intersecting;
+					el = near.getIntersection(line);
+					
+				} else {
+					line = new Line(new Point(new Position(c.mouse.position.x, 0)), new Slope(0, 1));
+					el = near.getIntersection(line);
+					el.constrainMovementTo = [];
+					el.constrainMovementTo.push(near);
+				}
 			}
 
 			el.createNode().render();
