@@ -74,7 +74,11 @@ $(function() {
 				$(".point.selected").removeClass("selected");
 				$(document).unbind("click");
 				$("#canvas").css("cursor", "default");
+				el.removeDependencyOn(c.mouse);
 				el.point2 = point;
+				el.dependencies.push(new Dependency(point, function(p) {
+					el.point2 = p;
+				}));
 				el.render();
 				$btn.removeClass("active");
 			}
@@ -109,7 +113,11 @@ $(function() {
 				$(document).unbind("click");
 				$(".point.selected").removeClass("selected");
 				$("#canvas").css("cursor", "default");
+				el.removeDependencyOn(c.mouse);
 				el.radiusPoint = point;
+				el.dependencies.push(new Dependency(el, function(p) {
+					el.radiusPoint = p;
+				}));
 				el.render();
 				$btn.removeClass("active");
 			}
@@ -127,6 +135,9 @@ var Slope = function(x, y) {
 	this.y = y;
 	this.getNormal = function() {
 		return new Slope(this.y, -this.x);
+	};
+	this.getRatio = function() {
+		return this.x / this.y;
 	};
 }
 
@@ -239,11 +250,14 @@ var Container = function() {
 };
 
 var Element = function(type) {
+	var that = this;
 	this.id = getUniqueId();
+	this.label = this.id;
 	this.size = 2;
 	this.color = "black";
 	this.type = type;
 	this.node = null;
+	this.labelNode = null;
 	this.container = null;
 	this.dependencies = [];
 
@@ -252,7 +266,6 @@ var Element = function(type) {
 	};
 	this.getDependents = function() {
 		var dependents = [];
-		var that = this;
 		$.each(this.container.elements, function(i, el) {
 			if (el.dependsOn(that)) {
 				dependents.push(el);
@@ -261,15 +274,18 @@ var Element = function(type) {
 		return dependents;
 	};
 	this.updateDependents = function() {
-		var that = this;
-		//console.log("update dependents of ", this, this.getDependents());
 		$.each(this.getDependents(), function(i, el) {
-			console.log("update ", el, that.getDependancy(el).callback);
-			that.getDependancy(el).callback(that);
+			that.getDependency(el).callback(that);
 		});
 	};
-	this.getDependancy = function(element) {
-		var that = this;
+	this.removeDependencyOn = function(element) {
+		$.each(this.dependencies, function(i, el) {
+			if (el.element.id === element.id) {
+				that.dependencies.splice(i, 1);
+			}
+		});
+	};
+	this.getDependency = function(element) {
 		var dep = null;
 		$.each(element.dependencies, function(i, el) {
 			if (el.element.id === that.id) {
@@ -289,6 +305,9 @@ var Element = function(type) {
 	};
 	this.getDistanceTo = function(element) {
 		throw Error("Not implemented");
+	};
+	this.createLabelNode = function() {
+		this.labelNode = $("<div/>").addClass("label").text(this.label);
 	};
 	this.createNode = function() {
 		throw Error("Not implemented");
@@ -343,12 +362,17 @@ var Point = function(position) {
 		return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)) - substract;
 	};
 	that.createNode = function() {
+		that.createLabelNode();
 		that.node = $("<div/>").attr("id", that.id)
 			.addClass("object point")
 			.css({width: that.size, height: that.size});
 		return that;
 	};
 	that.render = function() {
+		that.labelNode.offset({top: that.position.y - that.size/2 + 10, left: that.position.x - that.size/2 + 10})
+			.css({color: that.color});
+		$("#canvas").append(that.labelNode);
+
 		that.node.data("x", that.position.x).data("y", that.position.y)
 			.offset({top: that.position.y - that.size/2, left: that.position.x - that.size/2})
 			.css({"background-color": that.color});
@@ -443,6 +467,7 @@ var Line = function(point, arg) {
 		return new Slope(that.point1.position.x - that.point2.position.x, that.point1.position.y - that.point2.position.y);
 	};
 	that.createNode = function() {
+		that.createLabelNode();
 		that.node = $("<div/>").attr("id", that.id)
 			.addClass("object line")
 			.css({
@@ -464,6 +489,16 @@ var Line = function(point, arg) {
 		
 		if (p1.x === p2.x && p1.y === p2.y) {
 			throw Error("Cannot create line from one point; [X1Y1] === [X2Y2]");
+		}
+
+		if (that.label !== null) {
+			var line = new Line(new Point(new Position(0, 0)), new Slope(0, 1));
+			var inter = that.getIntersection(line).position.y;
+			that.labelNode.css({
+				top: inter + (that.getSlope().getRatio() > 1 ? -20 : 0), left: 5,
+				"color": that.color,
+			});
+			$("#canvas").append(that.labelNode);
 		}
 
 		that.node.css({
@@ -499,6 +534,26 @@ var Circle = function(point, arg) {
 		that.radius = arg;
 	}
 
+	that.getDistanceTo = function(arg) {
+		var point = null;
+		var substract = 0;
+
+		if (arg instanceof Position) {
+			point = new Point(arg);
+
+		} else if (arg.instanceOf(Element.types.point)) {
+			point = arg;
+		
+		} else if (arg.instanceOf(Element.types.circle)) {
+			point = arg.center;
+			substract = arg.radius;
+
+		} else if (arg.instanceOf(Element.types.line)) {
+			return arg.getDistanceTo(that);
+		}
+		
+		return point.getDistanceTo(that) - substract;
+	};
 	that.getRadius = function() {
 		var radius = null;
 		if (that.radiusPoint === null) {

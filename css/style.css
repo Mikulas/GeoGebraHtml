@@ -75,6 +75,8 @@ header {position: fixed;}
 input {padding: 10pt; z-index: 100;}
 input.active {color: green;}
 
+.label {position: absolute;}
+
 .object {position: absolute;}
 
 .point {border-radius: 10000px; background-color: blue; z-index: 5;}
