@@ -184,7 +184,7 @@ var Container = function() {
 			} else {
 				var line = that.dragging.constrainMovementTo[0];
 				var slope = line.getSlope();
-				that.dragging.position.y = line.point1.position.y - slope.getRatio() * e.pageX; // TODO FIX
+				that.dragging.position.y = line.point1.position.y + slope.getRatio() * (line.point1.position.x - e.pageX); // TODO FIX
 			}
 			that.dragging.renderTree();
 		}
