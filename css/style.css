@@ -68,6 +68,25 @@ td { vertical-align: top; }
 
 
 
+html, body {height: 100%;}
+#canvas {display: block; width: 100%; height: 100%;}
+
+header {position: fixed;}
+input {padding: 10pt; z-index: 100;}
+input.active {color: green;}
+
+.object {position: absolute;}
+
+.point {border-radius: 10000px; background-color: blue; z-index: 5;}
+.point.hover {background-color: green; box-shadow: 0px 0px 5px green;}
+.point.selected {background-color: orange; box-shadow: 0px 0px 5px orange;}
+
+.line {width: 30000px; background-color: red; z-index: 4;}
+
+.circle {border-radius: 10000px; border: 1px solid black; z-index: 3;}
+
+
+
 
 
 
