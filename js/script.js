@@ -51,13 +51,23 @@ $(function() {
 		
 		var el = null;
 		$(document).click(function(e) {
-			var pos = new Position(e.pageX, e.pageY);
-			var point = c.getNearestPoint(pos);
-			if (point === null) {
-				point = new Point(pos);
-				point.createNode().render();
-				c.add(point);
+			var ignoreIds = el === null ? [] : [el.id];
+			var near = c.getNearestObject(c.mouse.position, ignoreIds);
+			var point = null;
+			if (near === null) {
+				point = new Point(c.mouse.position);
+
+			} else if (near.instanceOf(Element.types.point)) {
+				point = near;
+
+			} else if (near.instanceOf(Element.types.line)) {
+				var line = new Line(new Point(new Position(c.mouse.position.x, 0)), new Slope(0, 1));
+				point = near.getIntersection(line);
+				point.constrainMovementTo = [];
+				point.constrainMovementTo.push(near);
 			}
+			c.add(point);
+			point.createNode().render();
 			point.node.addClass("selected");
 
 			// step 1: first point
@@ -153,7 +163,7 @@ var Container = function() {
 
 	$(document).mousedown(function(e) {
 		var point = that.getNearestPoint(new Position(e.pageX, e.pageY));
-		if (point === null || !point.moveable)
+		if (point === null || !point.isMoveable())
 			return false;
 
 		that.dragging = point;
@@ -166,7 +176,14 @@ var Container = function() {
 	$(document).mousemove(function(e) {
 		if (that.dragging !== null) {
 			that.dragging.position.x = e.pageX;
-			that.dragging.position.y = e.pageY;
+			if (that.dragging.constrainMovementTo.length === 0) {
+				that.dragging.position.y = e.pageY;
+
+			} else {
+				var line = that.dragging.constrainMovementTo[0];
+				var slope = line.getSlope();
+				that.dragging.position.y = line.point1.position.y - slope.getRatio() * e.pageX - 5;
+			}
 			that.dragging.renderTree();
 		}
 
@@ -211,14 +228,19 @@ var Container = function() {
 		return point;
 	};
 
-	this.getNearestObject = function(position) {
+	this.getNearestObject = function(position, ignoreIds) {
+		if (typeof ignoreIds === "undefined")
+			ignoreIds = [];
+
 		var threshold = 20;
 		var object = null;
 		$.each(this.elements, function(i, el) {
-			var distance = el.getDistanceTo(position);
-			if (distance < threshold) {
-				object = el;
-				threshold = distance;
+			if ($.inArray(el.id, ignoreIds) === -1) {
+				var distance = el.getDistanceTo(position);
+				if (distance < threshold) {
+					object = el;
+					threshold = distance;
+				}
 			}
 		});
 		return object;
@@ -342,8 +364,11 @@ var Point = function(position) {
 	that.dragging = false;
 	that.size = 7; // better rendering with odd numbers
 	that.color = "blue";
-	that.moveable = true;
+	that.constrainMovementTo = [];
 
+	that.isMoveable = function() {
+		return that.constrainMovementTo.length <= 1;
+	}
 	that.getDistanceTo = function(arg) {
 		var p1 = this.position;
 		var p2 = null;
@@ -367,6 +392,9 @@ var Point = function(position) {
 	};
 	that.createNode = function() {
 		that.createLabelNode();
+		if (!that.isMoveable()) {
+			that.color = "#493";
+		}
 		that.node = $("<div/>").attr("id", that.id)
 			.addClass("object point")
 			.css({width: that.size, height: that.size})
@@ -438,7 +466,8 @@ var Line = function(point, arg) {
 		// todo fix dividing be zero for axis perpendiculars
 
 		var point = new Point(new Position(x, y));
-		point.moveable = false;
+		point.constrainMovementTo.push(line);
+		point.constrainMovementTo.push(that);
 		var callback = function(l) {
 			point.position = that.getIntersection(line).position;
 		};
@@ -597,7 +626,6 @@ var c = new Container();
 var p1 = new Point(new Position(10, 100));
 var p2 = new Point(new Position(100, 140));
 var p3 = new Point(new Position(300, 50));
-p3.color = "green";
 c.add(p1);
 c.add(p2);
 c.add(p3);
@@ -606,7 +634,6 @@ c.add(l1);
 var l1p = l1.getPerpendicular(p3);
 c.add(l1p);
 var intersect = l1.getIntersection(l1p);
-intersect.color = "red";
 c.add(intersect);
 c.render();
 //*/
