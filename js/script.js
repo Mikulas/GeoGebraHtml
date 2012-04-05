@@ -106,7 +106,8 @@ $(function() {
 		var point = null;
 		$(document).click(function(e) {
 			var ignoreIds = el === null ? [] : [el.id];
-			var near = c.getNearestObject(c.mouse.position, ignoreIds);
+			var near = el === null ? c.getNearestObject(c.mouse.position, ignoreIds) : c.getNearestPoint(c.mouse.position);
+			console.log("near", near);
 			var finalize = function() {
 				$(document).unbind("click");
 				$("#canvas").css("cursor", "default");
