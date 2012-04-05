@@ -75,7 +75,6 @@ $(function() {
 				$(document).unbind("click");
 				$("#canvas").css("cursor", "default");
 				el.point2 = point;
-				el.updateDependencies();
 				el.render();
 				$btn.removeClass("active");
 			}
@@ -111,7 +110,6 @@ $(function() {
 				$(".point.selected").removeClass("selected");
 				$("#canvas").css("cursor", "default");
 				el.radiusPoint = point;
-				el.updateDependencies();
 				el.render();
 				$btn.removeClass("active");
 			}
@@ -130,6 +128,11 @@ var Slope = function(x, y) {
 	this.getNormal = function() {
 		return new Slope(this.y, -this.x);
 	};
+}
+
+var Dependency = function(element, callback) {
+	this.element = element;
+	this.callback = callback;
 }
 
 var Container = function() {
@@ -242,12 +245,10 @@ var Element = function(type) {
 	this.type = type;
 	this.node = null;
 	this.container = null;
+	this.dependencies = [];
 
 	this.instanceOf = function(type) {
 		return type === this.type;
-	};
-	this.getDependencies = function() {
-		return [];
 	};
 	this.getDependents = function() {
 		var dependents = [];
@@ -259,13 +260,28 @@ var Element = function(type) {
 		});
 		return dependents;
 	};
-	this.updateDependencies = function() {
-		this.node.data("depends-on", this.getDependencies());
+	this.updateDependents = function() {
+		var that = this;
+		//console.log("update dependents of ", this, this.getDependents());
+		$.each(this.getDependents(), function(i, el) {
+			console.log("update ", el, that.getDependancy(el).callback);
+			that.getDependancy(el).callback(that);
+		});
+	};
+	this.getDependancy = function(element) {
+		var that = this;
+		var dep = null;
+		$.each(element.dependencies, function(i, el) {
+			if (el.element.id === that.id) {
+				dep = el;
+			}
+		});
+		return dep;
 	};
 	this.dependsOn = function(element) {
 		var ret = false;
-		$.each(this.getDependencies(), function(i, el) {
-			if (el.id === element.id) {
+		$.each(this.dependencies, function(i, el) {
+			if (el.element.id === element.id) {
 				ret = true;
 			}
 		});
@@ -288,6 +304,7 @@ var Element = function(type) {
 		if (typeof self === "undefined" || self !== false)
 			this.render();
 
+		this.updateDependents();
 		$.each(this.getDependents(), function(i, el) {
 			el.renderTree();
 		});
@@ -349,12 +366,18 @@ var Line = function(point, arg) {
 	var that = new Element(Element.types.line);
 
 	that.point1 = point;
+	that.dependencies.push(new Dependency(point, function(p) {
+		that.point1 = p;
+	}));
 	that.point2 = null; // exactly one of point2 and slope must always be set
 	that.slope = null;
 	that.offset = 15000; // used for rendering purposes
 
 	if (arg instanceof Element && arg.instanceOf(Element.types.point)) {
 		that.point2 = arg;
+		that.dependencies.push(new Dependency(arg, function(p) {
+			that.point2 = p;
+		}));
 
 	} else if (arg instanceof Slope) {
 		that.slope = arg;
@@ -364,7 +387,11 @@ var Line = function(point, arg) {
 	}
 
 	that.getPerpendicular = function(point) {
-		return new Line(point, that.getSlope().getNormal());
+		var line = new Line(point, that.getSlope().getNormal());
+		line.dependencies.push(new Dependency(that, function(l) {
+			line.slope = l.getSlope().getNormal();
+		}));
+		return line;
 	};
 	that.getIntersection = function(line) {
 		var n1 = line.getSlope().getNormal();
@@ -381,7 +408,13 @@ var Line = function(point, arg) {
 		
 		// todo fix dividing be zero for axis perpendiculars
 
-		return new Point(new Position(x, y));
+		var point = new Point(new Position(x, y));
+		var callback = function(l) {
+			point.position = that.getIntersection(line).position;
+		};
+		point.dependencies.push(new Dependency(that, callback));
+		point.dependencies.push(new Dependency(line, callback));
+		return point;
 	};
 	that.getDistanceTo = function(arg) {
 		var point = null;
@@ -409,17 +442,9 @@ var Line = function(point, arg) {
 
 		return new Slope(that.point1.position.x - that.point2.position.x, that.point1.position.y - that.point2.position.y);
 	};
-	that.getDependencies = function() {
-		var deps = [that.point1];
-		if (that.point2 !== null) {
-			deps.push(that.point2);
-		}
-		return deps;
-	};
 	that.createNode = function() {
 		that.node = $("<div/>").attr("id", that.id)
 			.addClass("object line")
-			.data("depends-on", that.getDependencies())
 			.css({
 				"-webkit-transform-origin": that.offset + "px 0px",
 				height: that.size,
@@ -459,22 +484,20 @@ var Line = function(point, arg) {
 var Circle = function(point, arg) {
 	var that = new Element(Element.types.circle);
 	that.center = point;
+	that.dependencies.push(new Dependency(point, function(p) {
+		that.center = p;
+	}));
 	that.radius = null; // exactly one of radius and radiusPoint must always be set
 	that.radiusPoint = null;
 
 	if (arg instanceof Element && arg.instanceOf(Element.types.point)) {
 		that.radiusPoint = arg;
+		that.dependencies.push(new Dependency(arg, function(p) {
+			that.radiusPoint = p;
+		}));
 	} else {
 		that.radius = arg;
 	}
-
-	that.getDependencies = function() {
-		var deps = [that.center]; // todo move to separate method
-		if (that.radiusPoint !== null) {
-			deps.push(that.radiusPoint);
-		}
-		return deps;
-	};
 
 	that.getRadius = function() {
 		var radius = null;
@@ -487,8 +510,7 @@ var Circle = function(point, arg) {
 	};
 	that.createNode = function() {
 		that.node = $("<div/>").attr("id", that.id)
-			.addClass("object circle")
-			.data("depends-on", that.getDependencies());
+			.addClass("object circle");
 		return that;
 	};
 	that.size = 1;
