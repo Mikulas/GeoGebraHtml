@@ -95,6 +95,56 @@ $(function() {
 			}
 		});
 	});
+	$("#btn-line-perpendicular").click(function(e) {
+		e.stopPropagation();
+		$("input.active").removeClass("active");
+		var $btn = $(this);
+		$btn.addClass("active");
+		$("#canvas").css("cursor", "crosshair");
+
+		var el = null;
+		var point = null;
+		$(document).click(function(e) {
+			var ignoreIds = el === null ? [] : [el.id];
+			var near = c.getNearestObject(c.mouse.position, ignoreIds);
+			var finalize = function() {
+				$(document).unbind("click");
+				$("#canvas").css("cursor", "default");
+				$btn.removeClass("active");
+				console.log(el);
+			};
+			if (near === null) {
+				near = new Point(c.mouse.position); // intentionally clonning
+				near.createNode().render();
+				c.add(near);
+			}
+
+			if (near.instanceOf(Element.types.point) && el === null) {
+				point = near;
+
+			} else if (near.instanceOf(Element.types.point) && el !== null) {
+				el.point1 = near;
+				console.log(el.dependencies, "remove dep on ", c.mouse.id);
+				el.removeDependencyOn(c.mouse);
+				el.dependencies.push(new Dependency(el.point1, function(p) {
+					console.log("update perpedicular point1");
+					el.point1 = p;
+				}))
+				finalize();
+
+			} else if (near.instanceOf(Element.types.line) && point === null) {
+				el = near.getPerpendicular(c.mouse);
+				c.add(el);
+				el.createNode().render();
+
+			} else if (near.instanceOf(Element.types.line) && point !== null) {
+				el = near.getPerpendicular(point);
+				c.add(el);
+				el.createNode().render();
+				finalize();
+			}
+		});
+	});
 	$("#btn-circle").click(function(e) {
 		e.stopPropagation();
 		$("input.active").removeClass("active");
@@ -306,11 +356,12 @@ var Element = function(type) {
 		});
 	};
 	this.removeDependencyOn = function(element) {
-		$.each(this.dependencies, function(i, el) {
-			if (el.element.id === element.id) {
+		console.log(this, element);
+		for(var i = 0; i < this.dependencies.length; i++) { // $.each would crash with splice
+			if (this.dependencies[i].element.id === element.id) {
 				that.dependencies.splice(i, 1);
 			}
-		});
+		};
 	};
 	this.getDependency = function(element) {
 		var dep = null;
