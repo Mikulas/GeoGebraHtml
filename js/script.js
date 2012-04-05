@@ -132,15 +132,18 @@ var Container = function() {
 		}
 
 		var pos = new Position(e.pageX, e.pageY);
-		that.setMousePoint(pos);
-		that.mouse.renderTree(false);
-
 		var point = that.getNearestPoint(pos);
 		$(".hover").removeClass("hover");
-		if (point === null)
-			return false;
 
-		point.node.addClass("hover");
+		if (point === null) {
+			that.setMousePoint(pos);
+			that.mouse.renderTree(false);
+
+		} else {
+			point.node.addClass("hover");
+			that.setMousePoint(point.position);
+			that.mouse.renderTree(false);
+		}
 	});
 
 	this.setMousePoint = function(pos) {
