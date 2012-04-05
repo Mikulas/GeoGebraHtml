@@ -33,6 +33,8 @@ $(function() {
 			} else if (near.instanceOf(Element.types.line)) {
 				var line = new Line(new Point(new Position(c.mouse.position.x, 0)), new Slope(0, 1));
 				el = near.getIntersection(line);
+				el.constrainMovementTo = [];
+				el.constrainMovementTo.push(near);
 			}
 
 			el.createNode().render();
@@ -182,7 +184,7 @@ var Container = function() {
 			} else {
 				var line = that.dragging.constrainMovementTo[0];
 				var slope = line.getSlope();
-				that.dragging.position.y = line.point1.position.y - slope.getRatio() * e.pageX - 5;
+				that.dragging.position.y = line.point1.position.y - slope.getRatio() * e.pageX; // TODO FIX
 			}
 			that.dragging.renderTree();
 		}
