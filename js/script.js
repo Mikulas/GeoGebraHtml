@@ -107,7 +107,6 @@ $(function() {
 		$(document).click(function(e) {
 			var ignoreIds = el === null ? [] : [el.id];
 			var near = el === null ? c.getNearestObject(c.mouse.position, ignoreIds) : c.getNearestPoint(c.mouse.position);
-			console.log("near", near);
 			var finalize = function() {
 				$(document).unbind("click");
 				$("#canvas").css("cursor", "default");
@@ -125,10 +124,8 @@ $(function() {
 
 			} else if (near.instanceOf(Element.types.point) && el !== null) {
 				el.point1 = near;
-				console.log(el.dependencies, "remove dep on ", c.mouse.id);
 				el.removeDependencyOn(c.mouse);
 				el.dependencies.push(new Dependency(el.point1, function(p) {
-					console.log("update perpedicular point1");
 					el.point1 = p;
 				}))
 				finalize();
@@ -140,6 +137,54 @@ $(function() {
 
 			} else if (near.instanceOf(Element.types.line) && point !== null) {
 				el = near.getPerpendicular(point);
+				c.add(el);
+				el.createNode().render();
+				finalize();
+			}
+		});
+	});
+	$("#btn-line-parallel").click(function(e) {
+		e.stopPropagation();
+		$("input.active").removeClass("active");
+		var $btn = $(this);
+		$btn.addClass("active");
+		$("#canvas").css("cursor", "crosshair");
+
+		var el = null;
+		var point = null;
+		$(document).click(function(e) {
+			var ignoreIds = el === null ? [] : [el.id];
+			var near = el === null ? c.getNearestObject(c.mouse.position, ignoreIds) : c.getNearestPoint(c.mouse.position);
+			var finalize = function() {
+				$(document).unbind("click");
+				$("#canvas").css("cursor", "default");
+				$btn.removeClass("active");
+				console.log(el);
+			};
+			if (near === null) {
+				near = new Point(c.mouse.position); // intentionally clonning
+				near.createNode().render();
+				c.add(near);
+			}
+
+			if (near.instanceOf(Element.types.point) && el === null) {
+				point = near;
+
+			} else if (near.instanceOf(Element.types.point) && el !== null) {
+				el.point1 = near;
+				el.removeDependencyOn(c.mouse);
+				el.dependencies.push(new Dependency(el.point1, function(p) {
+					el.point1 = p;
+				}))
+				finalize();
+
+			} else if (near.instanceOf(Element.types.line) && point === null) {
+				el = near.getParallel(c.mouse);
+				c.add(el);
+				el.createNode().render();
+
+			} else if (near.instanceOf(Element.types.line) && point !== null) {
+				el = near.getParallel(point);
 				c.add(el);
 				el.createNode().render();
 				finalize();
@@ -501,6 +546,13 @@ var Line = function(point, arg) {
 		var line = new Line(point, that.getSlope().getNormal());
 		line.dependencies.push(new Dependency(that, function(l) {
 			line.slope = l.getSlope().getNormal();
+		}));
+		return line;
+	};
+	that.getParallel = function(point) {
+		var line = new Line(point, that.getSlope());
+		line.dependencies.push(new Dependency(that, function(l) {
+			line.slope = l.getSlope();
 		}));
 		return line;
 	};
