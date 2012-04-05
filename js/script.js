@@ -15,7 +15,6 @@ Math.crossProduct = function(pos1, pos2) {
 
 $(function() {
 	// todo refactor
-	// todo add partial rendering: circles with center|mouse radius before second point is selected etc
 	$("#btn-point").click(function(e) {
 		e.stopPropagation();
 		$("input.active").removeClass("active");
@@ -115,7 +114,7 @@ $(function() {
 				$("#canvas").css("cursor", "default");
 				el.removeDependencyOn(c.mouse);
 				el.radiusPoint = point;
-				el.dependencies.push(new Dependency(el, function(p) {
+				el.dependencies.push(new Dependency(point, function(p) {
 					el.radiusPoint = p;
 				}));
 				el.render();
