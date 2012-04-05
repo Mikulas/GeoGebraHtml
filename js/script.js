@@ -153,7 +153,11 @@ var Container = function() {
 	this.mouse = null;
 
 	$(document).mousedown(function(e) {
-		that.dragging = that.getNearestPoint(new Position(e.pageX, e.pageY));
+		var point = that.getNearestPoint(new Position(e.pageX, e.pageY));
+		if (!point.moveable)
+			return false;
+
+		that.dragging = point;
 		$(document).mouseup(function() {
 			that.dragging = null;	
 			$(document).unbind("mouseup");
@@ -339,6 +343,7 @@ var Point = function(position) {
 	that.dragging = false;
 	that.size = 7; // better rendering with odd numbers
 	that.color = "blue";
+	that.moveable = true;
 
 	that.getDistanceTo = function(arg) {
 		var p1 = this.position;
@@ -433,6 +438,7 @@ var Line = function(point, arg) {
 		// todo fix dividing be zero for axis perpendiculars
 
 		var point = new Point(new Position(x, y));
+		point.moveable = false;
 		var callback = function(l) {
 			point.position = that.getIntersection(line).position;
 		};
