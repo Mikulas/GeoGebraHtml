@@ -136,7 +136,7 @@ var Slope = function(x, y) {
 		return new Slope(this.y, -this.x);
 	};
 	this.getRatio = function() {
-		return this.x / this.y;
+		return - this.y / this.x;
 	};
 }
 
@@ -501,7 +501,7 @@ var Line = function(point, arg) {
 			var line = new Line(new Point(new Position(0, 0)), new Slope(0, 1));
 			var inter = that.getIntersection(line).position.y;
 			that.labelNode.css({
-				top: inter + (that.getSlope().getRatio() > 1 ? -20 : 0), left: 5,
+				top: inter + (that.getSlope().getRatio() < 0 ? -20 : 0), left: 5,
 				"color": that.color,
 			});
 			$("#canvas").append(that.labelNode);
