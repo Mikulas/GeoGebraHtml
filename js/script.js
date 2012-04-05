@@ -154,7 +154,7 @@ var Container = function() {
 
 	$(document).mousedown(function(e) {
 		var point = that.getNearestPoint(new Position(e.pageX, e.pageY));
-		if (!point.moveable)
+		if (point === null || !point.moveable)
 			return false;
 
 		that.dragging = point;
