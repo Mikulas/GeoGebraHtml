@@ -49,15 +49,20 @@ $(function() {
 				}
 
 			} else if (near.instanceOf(Element.types.circle)) {
-				/*var intersecting = c.getNearestObject(c.mouse.position, [near.id]);
-				intersecting = null;
+				var intersecting = c.getNearestObject(c.mouse.position, [near.id]);
 				if (intersecting !== null && intersecting.instanceOf(Element.types.line)) {
 					line = intersecting;
-					el = near.getIntersection(line);
+					var inters = line.getIntersection(near);
+					el = inters[0].getDistanceTo(c.mouse) < inters[1].getDistanceTo(c.mouse) ? inters[0] : inters[1];
 
-				} else {*/
+				} else if (intersecting !== null && intersecting.instanceOf(Element.types.circle)) {
+					var inters = near.getIntersection(intersecting);
+					el = inters[0].getDistanceTo(c.mouse) < inters[1].getDistanceTo(c.mouse) ? inters[0] : inters[1];
+					console.log(el);
+
+				} else {
 					el = near.getClosestPointTo(c.mouse);
-				//}
+				}
 			}
 
 			c.add(el);
@@ -81,6 +86,7 @@ $(function() {
 			var point = null;
 			if (near === null) {
 				point = new Point(c.mouse.position);
+				c.add(point);
 
 			} else if (near.instanceOf(Element.types.point)) {
 				point = near;
@@ -90,8 +96,8 @@ $(function() {
 				point = near.getIntersection(line);
 				point.constrainMovementTo = [];
 				point.constrainMovementTo.push(near);
+				c.add(point);
 			}
-			c.add(point);
 			point.createNode().render();
 			point.node.addClass("selected");
 
@@ -186,8 +192,8 @@ $(function() {
 			};
 			if (near === null) {
 				near = new Point(c.mouse.position); // intentionally clonning
-				near.createNode().render();
 				c.add(near);
+				near.createNode().render();
 			}
 
 			if (near.instanceOf(Element.types.point) && el === null) {
@@ -668,7 +674,6 @@ var Line = function(point, arg) {
 			point1.dependencies = [];			
 			var callback1 = function(l) {
 				point1.position = that.getIntersection(arg)[0].position;
-				console.log(point1.position);
 			};
 			point1.dependencies.push(new Dependency(that, callback1));
 			point1.dependencies.push(new Dependency(arg, callback1));
@@ -679,7 +684,6 @@ var Line = function(point, arg) {
 			point2.dependencies = [];
 			var callback2 = function(l) {
 				point2.position = that.getIntersection(arg)[1].position;
-				console.log(point2.position);
 			};
 			point2.dependencies.push(new Dependency(that, callback2));
 			point2.dependencies.push(new Dependency(arg, callback2));
@@ -826,6 +830,48 @@ var Circle = function(point, arg) {
 			.disableSelection();
 		return that;
 	};
+	that.getIntersection = function(arg) {
+		if (arg.instanceOf(Element.types.line)) {
+			return arg.getIntersection(arg);
+		
+		} else if (arg.instanceOf(Element.types.circle)) {
+			// http://local.wasp.uwa.edu.au/~pbourke/geometry/2circle/
+			// a = (r02 - r12 + d2 ) / (2 d)
+			var d = that.center.getDistanceTo(arg.center);
+			that.color = "red"; that.render();
+			var a = (Math.pow(that.getRadius(), 2) - Math.pow(arg.getRadius(), 2) + Math.pow(d, 2)) / (2 * d);
+			var slope = new Slope(that.center.position.x - arg.center.position.x, that.center.position.y - arg.center.position.y);
+			var signx = that.center.position.x > arg.center.position.x ? -1 : 1;
+			var signy = that.center.position.y > arg.center.position.y ? -1 : 1;
+			var T = new Point(new Position(
+				that.center.position.x + signx * a * Math.abs(slope.getCosine()),
+				that.center.position.y + signy * a * Math.abs(slope.getSine())
+			));
+			var perp = new Line(T, slope.getNormal());
+			perp.dependencies = [];
+			var inters = perp.getIntersection(that);
+
+			inters[0].dependencies = [];
+			inters[0].constrainMovementTo.push(that);
+			inters[0].constrainMovementTo.push(arg);
+			var callback1 = function() {
+				inters[0].position = that.getIntersection(arg)[0].position;
+			};
+			inters[0].dependencies.push(new Dependency(that, callback1));
+			inters[0].dependencies.push(new Dependency(arg, callback1));
+
+			inters[1].dependencies = [];
+			inters[1].constrainMovementTo.push(that);
+			inters[1].constrainMovementTo.push(arg);
+			var callback2 = function() {
+				inters[1].position = that.getIntersection(arg)[1].position;
+			};
+			inters[1].dependencies.push(new Dependency(that, callback2));
+			inters[1].dependencies.push(new Dependency(arg, callback2));
+
+			return inters;
+		}
+	};
 	that.getClosestPointTo = function(point) {
 		var c = that.center.position;
 		var target = new Point(new Position(
@@ -870,7 +916,7 @@ var Circle = function(point, arg) {
 }
 
 var c = new Container();
-//*
+/*
 var p1 = new Point(new Position(200, 200));
 var p2 = new Point(new Position(200, 400));
 var p3 = new Point(new Position(400, 200));
