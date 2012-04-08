@@ -23,6 +23,7 @@ $(function() {
 		$("#canvas").css("cursor", "crosshair");
 		$("#canvas").click(function(e) {
 			var near = c.getNearestObject(c.mouse.position);
+			
 			var el = null;
 			if (near === null) {
 				el = new Point(c.mouse.position);
@@ -34,20 +35,33 @@ $(function() {
 				var intersecting = c.getNearestObject(c.mouse.position, [near.id]);
 				var line = null;
 				
-				if (intersecting.instanceOf(Element.types.line)) {
+				if (intersecting !== null && intersecting.instanceOf(Element.types.line)
+				// if the lines are parallel, we would get into a lot of trouble
+				&& near.getSlope().getRatio() !== intersecting.getSlope().getRatio()) {
 					line = intersecting;
 					el = near.getIntersection(line);
-					
+
 				} else {
 					line = new Line(new Point(new Position(c.mouse.position.x, 0)), new Slope(0, 1));
 					el = near.getIntersection(line);
 					el.constrainMovementTo = [];
 					el.constrainMovementTo.push(near);
 				}
+
+			} else if (near.instanceOf(Element.types.circle)) {
+				/*var intersecting = c.getNearestObject(c.mouse.position, [near.id]);
+				intersecting = null;
+				if (intersecting !== null && intersecting.instanceOf(Element.types.line)) {
+					line = intersecting;
+					el = near.getIntersection(line);
+
+				} else {*/
+					el = near.getClosestPointTo(c.mouse);
+				//}
 			}
 
-			el.createNode().render();
 			c.add(el);
+			el.createNode().render();
 			$("#canvas").unbind("click");
 			$("#canvas").css("cursor", "default");
 			$btn.removeClass("active");
@@ -213,16 +227,16 @@ $(function() {
 			var point = c.getNearestPoint(pos);
 			if (point === null) {
 				point = new Point(pos);
-				point.createNode().render();
 				c.add(point);
+				point.createNode().render();
 			}
 			point.node.addClass("selected");
 
 			// step 1: select center
 			if (el === null) {
 				el = new Circle(point, c.mouse);
-				el.createNode().render();
 				c.add(el);
+				el.createNode().render();
 
 			// step 2: select radius
 			} else {
@@ -255,6 +269,12 @@ var Slope = function(x, y) {
 	this.getRatio = function() {
 		return - this.y / this.x;
 	};
+	this.getSine = function() {
+		return this.y / Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+	};
+	this.getCosine = function() {
+		return Math.sqrt(1 - Math.pow(this.getSine(), 2));
+	};
 }
 
 var Dependency = function(element, callback) {
@@ -286,10 +306,16 @@ var Container = function() {
 			if (that.dragging.constrainMovementTo.length === 0) {
 				that.dragging.position.y = e.pageY;
 
-			} else {
-				var line = that.dragging.constrainMovementTo[0];
-				var slope = line.getSlope();
-				that.dragging.position.y = line.point1.position.y + slope.getRatio() * (line.point1.position.x - e.pageX); // TODO FIX
+			} else if (that.dragging.constrainMovementTo.length === 1) {
+				if (that.dragging.constrainMovementTo[0].instanceOf(Element.types.line)) {
+					var line = that.dragging.constrainMovementTo[0];
+					var slope = line.getSlope();
+					that.dragging.position.y = line.point1.position.y + slope.getRatio() * (line.point1.position.x - e.pageX); // TODO FIX
+
+				} else if (that.dragging.constrainMovementTo[0].instanceOf(Element.types.circle)) {
+					var circle = that.dragging.constrainMovementTo[0];
+					that.dragging.position = circle.getClosestPointTo(c.mouse).position;
+				}
 			}
 			that.dragging.renderTree();
 		}
@@ -350,6 +376,7 @@ var Container = function() {
 				}
 			}
 		});
+		
 		return object;
 	};
 
@@ -370,6 +397,12 @@ var Container = function() {
 	};
 
 	this.add = function(element) {
+		if (element.node !== null) {
+			throw Error("Element node was already created without proper id given by container.");
+		}
+
+		element.id = getUniqueId();
+		element.label = element.id;
 		element.container = this;
 		this.elements.push(element);
 	};
@@ -383,8 +416,8 @@ var Container = function() {
 
 var Element = function(type) {
 	var that = this;
-	this.id = getUniqueId();
-	this.label = this.id;
+	this.id = null;
+	this.label = "";
 	this.size = 2;
 	this.color = "black";
 	this.type = type;
@@ -480,7 +513,6 @@ var Point = function(position) {
 	that.getDistanceTo = function(arg) {
 		var p1 = this.position;
 		var p2 = null;
-		var substract = 0;
 		
 		if (arg instanceof Position) {
 			p2 = arg;
@@ -488,15 +520,15 @@ var Point = function(position) {
 		} else if (arg.instanceOf(Element.types.point)) {
 			p2 = arg.position;
 		
-		} else if (arg.instanceOf(Element.types.circle)) {
-			p2 = arg.center.position;
-			substract = arg.radius;
-
 		} else if (arg.instanceOf(Element.types.line)) {
 			return that.getDistanceTo(arg.getPerpendicular(that).getIntersection(arg));
+
+		} else if (arg.instanceOf(Element.types.circle)) {
+			return that.getDistanceTo(arg.getClosestPointTo(that));
 		}
 		
-		return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)) - substract;
+		
+		return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
 	};
 	that.createNode = function() {
 		that.createLabelNode();
@@ -514,8 +546,7 @@ var Point = function(position) {
 			.css({color: that.color});
 		$("#canvas").append(that.labelNode);
 
-		that.node.data("x", that.position.x).data("y", that.position.y)
-			.offset({top: that.position.y - that.size/2, left: that.position.x - that.size/2})
+		that.node.offset({top: that.position.y - that.size/2, left: that.position.x - that.size/2})
 			.css({"background-color": that.color});
 		$("#canvas").append(that.node);
 		return this;
@@ -565,50 +596,56 @@ var Line = function(point, arg) {
 		}));
 		return line;
 	};
-	that.getIntersection = function(line) {
-		var n1 = line.getSlope().getNormal();
-		var n2 = that.getSlope().getNormal();
-		if (n1 === n2) { // parallel lines never intersect
-			return null;
+	that.getIntersection = function(arg) {
+		if (arg.instanceOf(Element.types.line)) {
+			var line = arg;
+			var n1 = line.getSlope().getNormal();
+			var n2 = that.getSlope().getNormal();
+			if (n1 === n2) { // parallel lines never intersect
+				return null;
+			}
+
+			var c = - n1.x * line.point1.position.x - n1.y * line.point1.position.y;
+			var g = - n2.x * that.point1.position.x - n2.y * that.point1.position.y;
+			
+			var x;
+			var y = (n2.x * c - g * n1.x) / (n1.x * n2.y - n1.y * n2.x);
+			if (n1.x !== 0) {
+				x = -(n1.y * y + c) / n1.x;
+			} else {
+				x = that.point1.position.x;
+			}
+			
+			var point = new Point(new Position(x, y));
+			point.constrainMovementTo.push(line);
+			point.constrainMovementTo.push(that);
+			var callback = function(l) {
+				point.position = that.getIntersection(line).position;
+			};
+			point.dependencies.push(new Dependency(that, callback));
+			point.dependencies.push(new Dependency(line, callback));
+			return point;
+
+		} else if (arg.instanceOf(Element.types.circle)) {
+			throw Error("not implemented");
 		}
-
-		var c = - n1.x * line.point1.position.x - n1.y * line.point1.position.y;
-		var g = - n2.x * that.point1.position.x - n2.y * that.point1.position.y;
-		
-		var y = (n2.x * c - g * n1.x) / (n1.x * n2.y - n1.y * n2.x);
-		var x = -(n1.y * y + c) / n1.x;
-		
-		// todo fix dividing be zero for axis perpendiculars
-
-		var point = new Point(new Position(x, y));
-		point.constrainMovementTo.push(line);
-		point.constrainMovementTo.push(that);
-		var callback = function(l) {
-			point.position = that.getIntersection(line).position;
-		};
-		point.dependencies.push(new Dependency(that, callback));
-		point.dependencies.push(new Dependency(line, callback));
-		return point;
 	};
 	that.getDistanceTo = function(arg) {
-		var point = null;
-		var substract = 0;
-
 		if (arg instanceof Position) {
-			point = new Point(arg);
+			return (new Point(arg)).getDistanceTo(that);
+		
+		} else if (arg.instanceOf(Element.types.point)) {
+			return arg.getDistanceTo(that);
 
 		} else if (arg.instanceOf(Element.types.line)) {
 			return arg.getSlope() === that.getSlope() ? Infinity : 0;
 		
-		} else if (arg.instanceOf(Element.types.point)) {
-			point = arg;
-		
 		} else if (arg.instanceOf(Element.types.circle)) {
-			point = arg.center;
-			substract = arg.radius;
+			return arg.getDistanceTo(that);
+
+		} else {
+			throw Error("not implemented");
 		}
-		
-		return point.getDistanceTo(that) - substract;
 	};
 	that.getSlope = function() {
 		if (that.slope !== null)
@@ -629,6 +666,8 @@ var Line = function(point, arg) {
 	that.render = function() {
 		var p1 = that.point1.position;
 		var p2 = null;
+		that.label = that.getSlope().getSine();
+		that.labelNode.text(that.label);
 
 		if (that.slope !== null) {
 			p2 = new Position(p1.x + that.slope.x, p1.y + that.slope.y);
@@ -674,6 +713,7 @@ var Circle = function(point, arg) {
 	}));
 	that.radius = null; // exactly one of radius and radiusPoint must always be set
 	that.radiusPoint = null;
+	that.size = 1;
 
 	if (arg instanceof Element && arg.instanceOf(Element.types.point)) {
 		that.radiusPoint = arg;
@@ -719,7 +759,33 @@ var Circle = function(point, arg) {
 			.disableSelection();
 		return that;
 	};
-	that.size = 1;
+	that.getClosestPointTo = function(point) {
+		var c = that.center.position;
+		var target = new Point(new Position(
+			point.position.x,
+			point.position.y < c.y ? point.position.y + 2*(c.y - point.position.y) : point.position.y
+		));
+		var line = new Line(that.center, target);
+		var n = line.getSlope().getNormal();
+		var sin = n.getSine();
+		var cos = n.getCosine();
+		var l1 = line.getPerpendicular(new Point(new Position(
+			c.x + that.getRadius() * sin,
+			c.y + that.getRadius() * cos
+		)));
+		
+		var inter = line.getIntersection(l1);
+		if (point.position.y !== target.position.y) {
+			inter.position.y -= 2 * cos * that.getRadius();
+		}
+		inter.constrainMovementTo = [];
+		inter.constrainMovementTo.push(that);
+		inter.dependencies = [];
+		inter.dependencies.push(new Dependency(that, function(c) {
+			inter.position = c.getClosestPointTo(inter).position;
+		}));
+		return inter;
+	}
 	that.render = function() {
 		var p = that.center.position;
 		var radius = that.getRadius();
@@ -738,17 +804,29 @@ var Circle = function(point, arg) {
 
 var c = new Container();
 //*
-var p1 = new Point(new Position(10, 100));
-var p2 = new Point(new Position(100, 140));
-var p3 = new Point(new Position(300, 50));
+var p1 = new Point(new Position(200, 200));
+var p2 = new Point(new Position(200, 400));
+var p3 = new Point(new Position(400, 200));
+var p4 = new Point(new Position(800, 200));
+var s = new Point(new Position(300, 300));
 c.add(p1);
 c.add(p2);
 c.add(p3);
-var l1 = new Line(p1, p2);
+c.add(p4);
+c.add(s);
+var l1 = new Line(p1, p4);
+var l2 = new Line(p2, p3);
+var l3 = new Line(p1, p2);
 c.add(l1);
-var l1p = l1.getPerpendicular(p3);
-c.add(l1p);
-var intersect = l1.getIntersection(l1p);
-c.add(intersect);
+c.add(l2);
+c.add(l3);
+var circle = new Circle(s, 200);
+c.add(circle);
+
+var ints = [];
+//var ints = l1.getIntersection(circle).concat(l2.getIntersection(circle)).concat(l3.getIntersection(circle));
+$.each(ints, function(i, el) {
+	c.add(el);
+})
 c.render();
 //*/
