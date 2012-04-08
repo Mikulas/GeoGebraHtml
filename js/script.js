@@ -530,6 +530,9 @@ var Point = function(position) {
 		
 		return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
 	};
+	that.isDefined = function() {
+		return !(isNaN(that.position.x) || isNaN(that.position.y));
+	};
 	that.createNode = function() {
 		that.createLabelNode();
 		if (!that.isMoveable()) {
@@ -542,6 +545,12 @@ var Point = function(position) {
 		return that;
 	};
 	that.render = function() {
+		if (!that.isDefined()) {
+			that.node.remove();
+			that.labelNode.remove();
+			return this;
+		}
+
 		that.labelNode.offset({top: that.position.y - that.size/2 + 10, left: that.position.x - that.size/2 + 10})
 			.css({color: that.color});
 		$("#canvas").append(that.labelNode);
@@ -659,6 +668,7 @@ var Line = function(point, arg) {
 			point1.dependencies = [];			
 			var callback1 = function(l) {
 				point1.position = that.getIntersection(arg)[0].position;
+				console.log(point1.position);
 			};
 			point1.dependencies.push(new Dependency(that, callback1));
 			point1.dependencies.push(new Dependency(arg, callback1));
@@ -666,9 +676,10 @@ var Line = function(point, arg) {
 			var point2 = new Point(new Position(x2 + c.x, y2 + c.y));
 			point2.constrainMovementTo.push(that);
 			point2.constrainMovementTo.push(arg);
-			point2.dependencies = [];			
+			point2.dependencies = [];
 			var callback2 = function(l) {
 				point2.position = that.getIntersection(arg)[1].position;
+				console.log(point2.position);
 			};
 			point2.dependencies.push(new Dependency(that, callback2));
 			point2.dependencies.push(new Dependency(arg, callback2));
