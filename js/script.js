@@ -138,8 +138,8 @@ $(function() {
 			};
 			if (near === null) {
 				near = new Point(c.mouse.position); // intentionally clonning
-				near.createNode().render();
 				c.add(near);
+				near.createNode().render();
 			}
 
 			if (near.instanceOf(Element.types.point) && el === null) {
@@ -627,7 +627,31 @@ var Line = function(point, arg) {
 			return point;
 
 		} else if (arg.instanceOf(Element.types.circle)) {
-			throw Error("not implemented");
+			// http://mathworld.wolfram.com/Circle-LineIntersection.html
+			var pos1 = new Position(that.point1.position.x, that.point1.position.y); // must be cloned
+			var spp = that.getSecondPoint().position;
+			var pos2 = new Position(spp.x, spp.y);
+
+			// computation for S[0;0], it's easiest to just move the points
+			var c = arg.center.position;
+			pos1.x -= c.x;
+			pos1.y -= c.y;
+			pos2.x -= c.x;
+			pos2.y -= c.y;
+
+			var dx = pos2.x - pos1.x;
+			var dy = pos2.y - pos1.y;
+			var dr = Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2));
+			var D = pos1.x * pos2.y - pos2.x * pos1.y;
+
+			var disc = Math.sqrt(Math.pow(arg.getRadius(), 2) * Math.pow(dr, 2) - Math.pow(D, 2));
+			var sgn = dy < 0 ? -1 : 1;
+			var x1 = (D * dy + sgn * dx * disc) / Math.pow(dr, 2);
+			var x2 = (D * dy - sgn * dx * disc) / Math.pow(dr, 2);
+			var y1 = (- D * dx + Math.abs(dy) * disc) / Math.pow(dr, 2);
+			var y2 = (- D * dx - Math.abs(dy) * disc) / Math.pow(dr, 2);
+			
+			return [new Point(new Position(x1 + c.x, y1 + c.y)), new Point(new Position(x2 + c.x, y2 + c.y))];
 		}
 	};
 	that.getDistanceTo = function(arg) {
@@ -646,6 +670,16 @@ var Line = function(point, arg) {
 		} else {
 			throw Error("not implemented");
 		}
+	};
+	that.getSecondPoint = function() {
+		if (that.point2 !== null) {
+			return that.point2;
+		}
+		var pos = that.point1.position;
+		return new Point(new Position(
+			pos.x + that.slope.x,
+			pos.y + that.slope.y
+		));
 	};
 	that.getSlope = function() {
 		if (that.slope !== null)
@@ -823,8 +857,8 @@ c.add(l3);
 var circle = new Circle(s, 200);
 c.add(circle);
 
-var ints = [];
-//var ints = l1.getIntersection(circle).concat(l2.getIntersection(circle)).concat(l3.getIntersection(circle));
+//var ints = [];
+var ints = l1.getIntersection(circle).concat(l2.getIntersection(circle)).concat(l3.getIntersection(circle));
 $.each(ints, function(i, el) {
 	c.add(el);
 })
