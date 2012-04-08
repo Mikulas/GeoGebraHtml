@@ -651,7 +651,29 @@ var Line = function(point, arg) {
 			var y1 = (- D * dx + Math.abs(dy) * disc) / Math.pow(dr, 2);
 			var y2 = (- D * dx - Math.abs(dy) * disc) / Math.pow(dr, 2);
 			
-			return [new Point(new Position(x1 + c.x, y1 + c.y)), new Point(new Position(x2 + c.x, y2 + c.y))];
+			// todo seriously? copy paste? rewrite it you lazy biatch!
+
+			var point1 = new Point(new Position(x1 + c.x, y1 + c.y));
+			point1.constrainMovementTo.push(that);
+			point1.constrainMovementTo.push(arg);
+			point1.dependencies = [];			
+			var callback1 = function(l) {
+				point1.position = that.getIntersection(arg)[0].position;
+			};
+			point1.dependencies.push(new Dependency(that, callback1));
+			point1.dependencies.push(new Dependency(arg, callback1));
+
+			var point2 = new Point(new Position(x2 + c.x, y2 + c.y));
+			point2.constrainMovementTo.push(that);
+			point2.constrainMovementTo.push(arg);
+			point2.dependencies = [];			
+			var callback2 = function(l) {
+				point2.position = that.getIntersection(arg)[1].position;
+			};
+			point2.dependencies.push(new Dependency(that, callback2));
+			point2.dependencies.push(new Dependency(arg, callback2));
+
+			return [point1, point2];
 		}
 	};
 	that.getDistanceTo = function(arg) {
